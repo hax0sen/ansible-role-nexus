@@ -1,0 +1,13 @@
+---
+# defaults file for test
+ansible_connection: ssh
+ansible_ssh_user: user
+ansible_ssh_pass: user
+ansible_become_pass: pass
+
+nexus_url: 192.168.0.20
+nexus_master_caddy: true
+nexus_admin_password: newpassword
+update_nexus_password: true
+nexus_system_path: /home/nexus
+nexus_system_user: nexus

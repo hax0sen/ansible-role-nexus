@@ -1,0 +1,12 @@
+{
+  debug
+}
+
+# HTTP site block
+{{ nexus_url }}:80 {
+  reverse_proxy nexus:8081
+}
+# HTTP(S) site block
+{{ nexus_url }}:443 {
+  reverse_proxy nexus:8081
+}

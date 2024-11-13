@@ -1,0 +1,34 @@
+version: '3.8'
+services:
+  nexus:
+    image: sonatype/nexus3:3.74.0
+    hostname: nexus
+    container_name: nexus
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    privileged: true
+    environment:
+      - NEXUS_SECURITY_RANDOMPASSWORD=true  # Disable random password generation
+      - INSTALL4J_ADD_VM_PARAMS=-Xms1200M -Xmx1200M -XX:MaxDirectMemorySize=2G -XX:+UseG1GC
+    volumes:
+      - nexus-volume:/nexus-data           # Persistent data volume
+      - ${PWD}/nexus.properties:/nexus-data/etc/nexus.properties  # Map nexus.properties
+      - ${PWD}/nexus.vmoptions:/nexus-data/etc/nexus.vmoptions            # Map jvm.options
+  caddy:
+    image: caddy:latest
+    hostname: caddy
+    container_name: caddy
+    restart: unless-stopped
+    privileged: true
+    ports:
+      - "80:80" # For HTTP -> HTTPS redirects
+      - "443:443"
+    volumes:
+      - {{ nexus_system_path }}/Caddyfile:/etc/caddy/Caddyfile
+
+volumes:
+  nexus-volume:
+    driver: local
+  postgres-data:
+    driver: local

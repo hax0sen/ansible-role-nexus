@@ -1,0 +1,140 @@
+---
+- name: Ensure nexus system user exist
+  ansible.builtin.user:
+    name: "{{ nexus_system_user }}"
+    createhome: yes
+    home: "{{ nexus_system_path }}"
+
+- name: Generate Nexus configuration files from template files
+  become: true
+  ansible.builtin.template:
+    src: "nexusfiles/{{ item }}.j2"
+    dest: "{{ nexus_system_path }}/{{ item }}"
+    mode: '775'
+    owner: "{{ nexus_system_user }}"
+    group: "{{ nexus_system_user }}"
+  loop:
+    - nexus.properties
+    - nexus.vmoptions
+    - init_nexus.sh
+  notify: Restart containers
+
+- name: Enusre Caddyfile exist on system
+  become: true
+  ansible.builtin.template:
+    src: caddy/Caddyfile.j2
+    dest: "{{ nexus_system_path }}/Caddyfile"
+    owner: "{{ nexus_system_user }}"
+    group: "{{ nexus_system_user }}"
+  when: nexus_master_caddy | bool
+  notify: Restart containers
+
+- name: Generate docker compose file from template
+  become: true
+  ansible.builtin.template:
+    src: "docker-compose.yml.j2"
+    dest: "{{ nexus_system_path }}/docker-compose.yml"
+    mode: '0664'
+    owner: "{{ nexus_system_user }}"
+    group: "{{ nexus_system_user }}"
+  notify: Restart containers
+
+- name: Start up Nexus master services
+  become: true
+  ansible.builtin.shell: docker-compose up -d
+  args:
+    chdir: "{{ nexus_system_path }}"
+  changed_when: false
+
+- name: Start up Nexus master services
+  become: true
+  ansible.builtin.shell: docker-compose up -d
+  args:
+    chdir: "{{ nexus_system_path }}"
+  register: _nexus_result
+  changed_when: (_nexus_result.stderr | regex_search('Recreating')) == 'Recreating'
+
+- name: Update Nexus admin password with script
+  block:
+    - name: Enable script creation in nexus.properties
+      ansible.builtin.lineinfile:
+        path: "/home/nexus/nexus.properties"
+        regexp: "^nexus.scripts.allowCreation="
+        line: "nexus.scripts.allowCreation=true"
+        state: present
+
+    - name: Restart Nexus container to apply script creation change
+      ansible.builtin.command:
+        cmd: docker compose restart nexus
+  
+    - name: Pause for 30 seconds
+      ansible.builtin.pause:
+        seconds: 30
+
+    - name: Wait for Nexus to start up
+      ansible.builtin.uri:
+        url: "http://192.168.0.20:8081/service/rest/v1/status/writable"
+        status_code: 200
+      register: result
+      until: result.status == 200
+      retries: 10
+      delay: 20
+
+    - name: Upload Nexus script to change admin password
+      ansible.builtin.uri:
+        url: "http://192.168.0.20:8081/service/rest/v1/script"
+        user: admin
+        password: admin123
+        method: POST
+        body_format: json
+        force_basic_auth: yes
+        status_code: 204
+        body:
+          name: "change_admin_password"
+          type: "groovy"
+          content: "{{ lookup('file', 'files/change_admin_password.groovy') }}"
+
+    - name: Run uploaded Groovy script to update admin password
+      ansible.builtin.uri:
+        url: "http://192.168.0.20:8081/service/rest/v1/script/change_admin_password/run"
+        user: admin
+        password: admin123
+        method: POST
+        force_basic_auth: yes
+        status_code: [200, 204]
+        headers:
+          Content-Type: "text/plain"
+        body: "{{ {'new_password': nexus_admin_password} | to_json }}"
+      register: run_script_result
+
+    - name: Remove the Groovy script after successful execution
+      ansible.builtin.uri:
+        url: "http://192.168.0.20:8081/service/rest/v1/script/change_admin_password"
+        user: admin
+        password: "{{ nexus_admin_password }}"
+        method: DELETE
+        status_code: 204
+        force_basic_auth: yes
+      when: run_script_result.status == 200
+
+    - name: Revert script creation setting to false in nexus.properties
+      ansible.builtin.lineinfile:
+        path: "/home/nexus/nexus.properties"
+        regexp: "^nexus.scripts.allowCreation="
+        line: "nexus.scripts.allowCreation=false"
+        state: present
+
+    - name: Restart Nexus container to apply script creation change
+      ansible.builtin.command:
+        cmd: docker compose restart nexus
+
+    - name: Wait for Nexus to start up
+      ansible.builtin.uri:
+        url: "http://192.168.0.20:8081/service/rest/v1/status/writable"
+        status_code: 200
+      register: result
+      until: result.status == 200
+      retries: 10
+      delay: 20
+
+  when: update_nexus_password | bool
