@@ -1,0 +1,10 @@
+---
+- name: Run playbook
+  gather_facts: true
+  hosts: nexus-pro
+  become: true
+  roles:
+    - role: roles/ansible-role-nexus-pro
+  tasks:
+    - name: Include Nexus configuration tasks
+      include_tasks: nexus_tasks.yml
