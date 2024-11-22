@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-# Copyright: Contributors to the hax0sen.sonatype_nexus project
+# Copyright: Contributors to the haxorof.sonatype_nexus project
 # MIT License (see COPYING or https://opensource.org/license/mit/)
 
 from __future__ import absolute_import, division, print_function
@@ -14,43 +14,65 @@ short_description: Manage LDAP servers in Nexus
 """
 
 EXAMPLES = r"""
+- name: Ensure LDAP server is present
+nexus_security_ldap:
+    state: present
+    url: "http://nexus.example.com"
+    username: "admin"
+    password: "admin123"
+    ldap_name: "MyLDAPServer"
+    ldap_protocol: "LDAP"
+    ldap_host: "ldap.example.com"
+    ldap_port: 389
+    ldap_searchBase: "dc=example,dc=com"
+    ldap_authScheme: "SIMPLE"
+    ldap_connectionTimeoutSeconds: 30
+    ldap_connectionRetryDelaySeconds: 5
+    ldap_maxIncidentsCount: 3
+    ldap_authPassword: "ldap_password"
 
+- name: Ensure LDAP server is absent
+nexus_security_ldap:
+    state: absent
+    url: "http://nexus.example.com"
+    username: "admin"
+    password: "admin123"
+    ldap_name: "MyLDAPServer"
 """
+
 RETURN = r"""
 """
 
-from ansible.module_utils.basic import AnsibleModule, env_fallback
-from ansible_collections.hax0sen.sonatype_nexus.plugins.module_utils.nexus import NexusHelper
+from ansible.module_utils.basic import AnsibleModule
+from ansible_collections.haxorof.sonatype_nexus.plugins.module_utils.nexus import NexusHelper
 
 def get_ldap_server(helper):
+    """Retrieve the LDAP server configuration by name."""
+    ldap_name = helper.module.params.get("current_ldap_name") or helper.module.params["ldap_name"]  # Use current_ldap_name if specified
     endpoint = "ldap"
     info, content = helper.request(
         api_url=(helper.NEXUS_API_ENDPOINTS[endpoint] + "/{name}").format(
             url=helper.module.params["url"],
-            name=helper.module.params["ldap_name"],
+            name=ldap_name,
         ),
         method="GET",
     )
-    if info["status"] in [200]:
-        content = [content]
-    elif info["status"] in [404]:
-        content = []
+    if info["status"] == 200:
+        return content
+    elif info["status"] == 404:
+        return None  # Return None if not found
     elif info["status"] == 403:
         helper.module.fail_json(
-            msg="Insufficient permissions to read LDAP server '{ldap_name}'.".format(
-                ldap_name=helper.module.params["ldap_name"],
-            )
+            msg=f"Insufficient permissions to read LDAP server '{ldap_name}'."
         )
     else:
         helper.module.fail_json(
-            msg="Failed to read LDAP server '{ldap_name}', http_status={status}.".format(
-                ldap_name=helper.module.params["ldap_name"],
-                status=info["status"],
-            )
+            msg=f"Failed to read LDAP server '{ldap_name}', http_status={info['status']}."
         )
     return content
 
 def get_ldap_data(helper):
+    """Assemble the data structure for LDAP server configuration."""
     return {
         "name": helper.module.params["ldap_name"],
         "protocol": helper.module.params["ldap_protocol"],
@@ -85,63 +107,87 @@ def get_ldap_data(helper):
     }
 
 def create_ldap_server(helper):
-    changed = True
+    """Create a new LDAP server."""
     data = get_ldap_data(helper)
     endpoint = "ldap"
+
+    # Check if the LDAP server already exists
+    existing_ldap = get_ldap_server(helper)
+    if existing_ldap:
+        return existing_ldap, False
+
+    # Create the LDAP server
     info, content = helper.request(
-        api_url=(helper.NEXUS_API_ENDPOINTS[endpoint]).format(
-            url=helper.module.params["url"],
-        ),
+        api_url=(helper.NEXUS_API_ENDPOINTS[endpoint]).format(url=helper.module.params["url"]),
         method="POST",
         data=data,
     )
-    if info["status"] == 403:
+
+    # Handle API response
+    if info["status"] == 201:
+        content = {
+            "msg": f"LDAP server '{helper.module.params['ldap_name']}' created successfully"
+        }
+    elif info["status"] == 403:
         helper.generic_permission_failure_msg()
     elif not helper.is_request_status_ok(info):
         helper.module.fail_json(
-            msg="Failed to create LDAP server {name}, http_status={http_status}, error_msg='{error_msg}'.".format(
-                error_msg=info["msg"],
-                http_status=info["status"],
-                name=helper.module.params["ldap_name"],
-            )
+            msg=f"Failed to create LDAP server {helper.module.params['ldap_name']}, http_status={info['status']}, error_msg='{info['msg']}'."
         )
-
-    return content, changed
+    return content, True
 
 def update_ldap_server(helper, existing_ldap):
-    changed = True
-    data = get_ldap_data(helper)
+    """Update an existing LDAP server if differences are found."""
+    data = get_ldap_data(helper)  # Get the desired configuration
     endpoint = "ldap"
-    if helper.is_json_data_equal(data, existing_ldap):
+
+    # Use current_ldap_name if specified; otherwise, use the desired ldap_name
+    ldap_name = helper.module.params.get("current_ldap_name") or helper.module.params["ldap_name"]
+
+    # Copy the existing LDAP configuration to compare and modify
+    updated_ldap = existing_ldap.copy()
+    changes_detected = False
+
+    # Compare existing LDAP settings with the desired state
+    for key, value in data.items():
+        if key != "authPassword" and existing_ldap.get(key) != value:
+            updated_ldap[key] = value
+            changes_detected = True
+
+    # If no changes detected, return existing LDAP configuration
+    if not changes_detected:
         return existing_ldap, False
 
+    # Always include authPassword in the payload if provided in the input
+    if "authPassword" in data:
+        updated_ldap["authPassword"] = data["authPassword"]
+
+    # Make a PUT request using the current or original ldap_name
     info, content = helper.request(
         api_url=(helper.NEXUS_API_ENDPOINTS[endpoint] + "/{name}").format(
             url=helper.module.params["url"],
-            name=helper.module.params["ldap_name"],
+            name=ldap_name,
         ),
         method="PUT",
-        data=data,
+        data=updated_ldap,
     )
 
-    if info["status"] in [204]:
-        content = data
-    elif info["status"] == 403:
+    # Handle API response
+    if info["status"] in [204]:  # Successful update
+        return updated_ldap, True
+    elif info["status"] == 403:  # Permission error
         helper.generic_permission_failure_msg()
-    else:
+    else:  # Other errors
         helper.module.fail_json(
-            msg="Failed to update LDAP server {name}, http_status={http_status}, error_msg='{error_msg}'.".format(
-                error_msg=info["msg"],
-                http_status=info["status"],
-                name=helper.module.params["ldap_name"],
-            )
+            msg=f"Failed to update LDAP server {ldap_name}, http_status={info['status']}, error_msg='{info.get('msg', 'Unknown error')}'."
         )
 
-    return content, changed
+    return content, True
 
 def delete_ldap_server(helper):
-    changed = True
+    """Delete an existing LDAP server."""
     endpoint = "ldap"
+    changed = True
     info, content = helper.request(
         api_url=(helper.NEXUS_API_ENDPOINTS[endpoint] + "/{name}").format(
             url=helper.module.params["url"],
@@ -149,76 +195,41 @@ def delete_ldap_server(helper):
         ),
         method="DELETE",
     )
-
     if info["status"] in [404]:
-        content.pop("fetch_url_retries", None)
-        changed = False
+        return {}, False
     elif info["status"] == 403:
         helper.generic_permission_failure_msg()
     elif not helper.is_request_status_ok(info):
         helper.module.fail_json(
-            msg="Failed to delete LDAP server {name}, http_status={http_status}, error_msg='{error_msg}'.".format(
-                error_msg=info["msg"],
-                http_status=info["status"],
-                name=helper.module.params["ldap_name"],
-            )
+            msg=f"Failed to delete LDAP server {helper.module.params['ldap_name']}, http_status={info['status']}, error_msg='{info['msg']}'."
         )
-
+    elif info["status"] == 204:
+        content = {
+            "msg": f"LDAP server '{helper.module.params['ldap_name']}' deleted successfully"
+        }
     return content, changed
 
-def manage_ldap_server(helper):
-    method = helper.module.params["method"]
-    content = {}
-    changed = True
-
-    if method == "GET":
-        content = get_ldap_server(helper)
-        changed = False
-    elif method == "POST":
-        existing_ldap = get_ldap_server(helper)
-        if existing_ldap:
-            helper.module.log(msg="LDAP server already exists, no changes made.")
-            content = existing_ldap
-            changed = False
-        else:
-            content, changed = create_ldap_server(helper)
-    elif method == "DELETE":
-        content, changed = delete_ldap_server(helper)
-    elif method == "PUT":
-        existing_ldap = get_ldap_server(helper)
-        if existing_ldap:
-            content, changed = update_ldap_server(helper, existing_ldap)
-        else:
-            content, changed = create_ldap_server(helper)
-    else:
-        helper.module.fail_json(msg="Unsupported method: {method}".format(method=method))
-
-    return content, changed
-           
 def main():
     argument_spec = NexusHelper.nexus_argument_spec()
     argument_spec.update(
-        method=dict(type="str", choices=["GET", "POST", "PUT", "DELETE"], required=True),
-        
-        # Required parameters from API documentation
+        method=dict(type="str", choices=["GET"], required=False),
+        state=dict(type="str", choices=["present", "absent"], required=False),
+        current_ldap_name=dict(type="str", required=False),
         ldap_name=dict(type="str", required=True),
-        ldap_protocol=dict(type="str", choices=["LDAP", "LDAPS"], required=True),
-        ldap_host=dict(type="str", required=True),
-        ldap_port=dict(type="int", required=True),
-        ldap_searchBase=dict(type="str", required=True),
-        ldap_authScheme=dict(type="str", choices=["NONE", "SIMPLE", "DIGEST_MD5", "CRAM_MD5"], required=True),
-        ldap_connectionTimeoutSeconds=dict(type="int", required=True),
-        ldap_connectionRetryDelaySeconds=dict(type="int", required=True),
-        ldap_maxIncidentsCount=dict(type="int", required=True),
-        ldap_authPassword=dict(type="str", required=True, no_log=True),
-        
-        # Conditional required parameters
-        ldap_groupType=dict(type="str", choices=["STATIC", "DYNAMIC"], required=False), # Required if ldapGroupsAsRoles is True
-        ldap_authRealm=dict(type="str", required=False), # Required if authScheme is CRAM_MD5 or DIGEST_MD5
-        ldap_authUsername=dict(type="str", required=False), # Required if authScheme other than NONE
-        ldap_userMemberOfAttribute=dict(type="str", required=False), # Required if groupType is dynamic
-        
-        # Optional LDAP and user-specific fields
+        url=dict(type="str", required=True),
+        ldap_protocol=dict(type="str", choices=["LDAP", "LDAPS"], required=False),
+        ldap_host=dict(type="str", required=False),
+        ldap_port=dict(type="int", required=False),
+        ldap_searchBase=dict(type="str", required=False),
+        ldap_authScheme=dict(type="str", choices=["NONE", "SIMPLE", "DIGEST_MD5", "CRAM_MD5"], required=False),
+        ldap_connectionTimeoutSeconds=dict(type="int", required=False),
+        ldap_connectionRetryDelaySeconds=dict(type="int", required=False),
+        ldap_maxIncidentsCount=dict(type="int", required=False),
+        ldap_authPassword=dict(type="str", required=False, no_log=True),
+        ldap_groupType=dict(type="str", choices=["STATIC", "DYNAMIC"], required=False),
+        ldap_authRealm=dict(type="str", required=False),
+        ldap_authUsername=dict(type="str", required=False),
+        ldap_userMemberOfAttribute=dict(type="str", required=False),
         ldap_useTrustStore=dict(type="bool", required=False, default=False),
         ldap_userBaseDn=dict(type="str", required=False),
         ldap_userSubtree=dict(type="bool", required=False, default=False),
@@ -229,36 +240,53 @@ def main():
         ldap_userEmailAddressAttribute=dict(type="str", required=False),
         ldap_userPasswordAttribute=dict(type="str", required=False),
         ldap_ldapGroupsAsRoles=dict(type="bool", required=False, default=False),
-
-        # Optional group-specific fields
         ldap_groupBaseDn=dict(type="str", required=False),
         ldap_groupSubtree=dict(type="bool", required=False, default=False),
-        ldap_groupObjectClass=dict(type="str", required=False), # Required if groupType is static
-        ldap_groupIdAttribute=dict(type="str", required=False), # Required if groupType is static
-        ldap_groupMemberAttribute=dict(type="str", required=False), # Required if groupType is static
-        ldap_groupMemberFormat=dict(type="str", required=False), # Required if groupType is static
+        ldap_groupObjectClass=dict(type="str", required=False),
+        ldap_groupIdAttribute=dict(type="str", required=False),
+        ldap_groupMemberAttribute=dict(type="str", required=False),
+        ldap_groupMemberFormat=dict(type="str", required=False),
     )
+
     module = AnsibleModule(
         argument_spec=argument_spec,
         supports_check_mode=False,
-        required_together=[("username", "password")],
     )
 
     helper = NexusHelper(module)
 
-    # Seed the result dictionary
+    # Seed the result dict in the object
     result = dict(
         changed=False,
         messages=[],
         json={},
     )
 
-    content, changed = manage_ldap_server(helper)
+    content = {}
+    changed = False
 
+    # Main logic for managing LDAP server
+    if module.params["method"] == "GET":
+        content = get_ldap_server(helper)
+    else:
+        existing_ldap = get_ldap_server(helper)
+        if module.params["state"] == "present":
+            if existing_ldap:
+                content, changed = update_ldap_server(helper, existing_ldap)
+            else:
+                content, changed = create_ldap_server(helper)
+        else:  # state == "absent"
+            if existing_ldap:
+                content, changed = delete_ldap_server(helper)
+                module.params["state"] = "absent"  # Ensure state is set to absent
+            else:
+                changed = False  # Already absent
+
+    # Final result
     result["json"] = content
     result["changed"] = changed
-
     module.exit_json(**result)
 
 if __name__ == "__main__":
     main()
+

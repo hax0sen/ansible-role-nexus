@@ -1,8 +1,8 @@
 ---
 
 - name: Create user
-  collection.sonatype_nexus.nexus_security_user:
-    url: "http://172.18.0.3:8081"
+  haxorof.sonatype_nexus.nexus_security_user:
+    url: "http://172.18.0.2:8081"
     validate_certs: no
     username: admin
     password: admin123
@@ -19,8 +19,8 @@
 
 #Create a list of 
 - name: Get Nexus scripts
-  collection.sonatype_nexus.nexus_script_info:
-    url: "http://172.18.0.3:8081"
+  haxorof.sonatype_nexus.nexus_script_info:
+    url: "http://172.18.0.2:8081"
     user: admin
     password: admin123
     method: GET
@@ -32,57 +32,84 @@
 
 
 - name: Upload Nexus script to change admin password
-  collection.sonatype_nexus.nexus_script:
-    url: "http://172.18.0.3:8081"
+  haxorof.sonatype_nexus.nexus_script:
+    url: "http://172.18.0.2:8081"
     user: admin
+    validate_certs: no
     password: admin123
     method: POST
     name: "change_admin_password"
-    content: "{{ lookup('file', '/home/hax0sen/.ansible/collections/ansible_collections/collection/sonatype_nexus/files/change_admin_password.groovy') }}"
+    content: "{{ lookup('file', '/home/hax0sen/.ansible/collections/ansible_collections/haxorof/sonatype_nexus/files/change_admin_password.groovy') }}"
 
 # - name: Delete Nexus script to change admin password
-#   collection.sonatype_nexus.nexus_script:
-#     url: "http://172.18.0.3:8081"
+#   haxorof.sonatype_nexus.nexus_script:
+#     url: "http://172.18.0.2:8081"
 #     user: admin
 #     password: admin123
 #     method: DELETE
 #     name: "change_admin_password"
 
 # - name: Trigger script 
-#   collection.sonatype_nexus.nexus_script_run:
-#     url: "http://172.18.0.3:8081"
+#   haxorof.sonatype_nexus.nexus_script_run:
+#     url: "http://172.18.0.2:8081"
 #     user: admin
 #     password: admin123
 #     name: "change_admin_password"
 #     body: "{{ {'new_password': nexus_admin_password} | to_json }}"
 
-
-- name: Get Ldap servers connect to this Nexus
-  collection.sonatype_nexus.nexus_security_ldap_info:
-    url: "http://172.18.0.3:8081"
+- name: Get all Ldap servers connect to this Nexus
+  haxorof.sonatype_nexus.nexus_security_ldap_info:
+    url: "http://172.18.0.2:8081"
     user: admin
     password: admin123
     method: GET
-  register: ldap_list
+  register: all_ldap_info_servers
 
-- name: Debug ldap list
+- name: List all current LDAP servers
   debug:
-    var: ldap_list
+    var: all_ldap_info_servers
+
+- name: Get Ldap server connect to this Nexus
+  haxorof.sonatype_nexus.nexus_security_ldap_info:
+    url: "http://172.18.0.2:8081"
+    user: admin
+    password: admin123
+    method: GET
+    ldap_name: secondary
+  register: ldap_info_server_list
+
+- name: Debug <name> ldap server
+  debug:
+    var: ldap_info_server_list
+
+- name: Get Ldap server connect to this Nexus
+  haxorof.sonatype_nexus.nexus_security_ldap:
+    url: "http://172.18.0.2:8081"
+    user: admin
+    password: admin123
+    method: GET
+    ldap_name: "secondary"
+  register: ldap_server_list
+
+- name: Debug <name> ldap server
+  debug:
+    var: ldap_server_list
 
 - name: Create LDAP server "my-ldap-server"
-  collection.sonatype_nexus.nexus_security_ldap:
-    url: "http://172.18.0.3:8081"  # Nexus URL
+  haxorof.sonatype_nexus.nexus_security_ldap:
+    url: "http://172.18.0.2:8081"  # Nexus URL
     user: admin  # Username for Nexus
     password: admin123  # Password for Nexus
-    method: POST  # HTTP method for creation
-    ldap_name: "my-ldap-server"  # Name for the LDAP server (required)
+    validate_certs: no
+    state: present  # Ensure LDAP server is created/updated
+    ldap_name: "test"  # Name for the LDAP server (required)
     ldap_protocol: "LDAP"  # Protocol (required)
     ldap_useTrustStore: false  # Don't use a trust store (optional)
     ldap_host: "ldap.example.com"  # LDAP server hostname (required)
-    ldap_port: 389  # LDAP server port (optional, default 389 for LDAP)
+    ldap_port: 3635  # LDAP server port (optional, default 389 for LDAP)
     ldap_searchBase: "dc=example,dc=com"  # Search base for LDAP queries (required)
     ldap_authScheme: "SIMPLE"  # Authentication scheme (required)
-    ldap_authUsername: "admin"  # Username for LDAP binding (required)
+    ldap_authUsername: "test"  # Username for LDAP binding (required)
     ldap_authPassword: "secretpassword"  # Password for LDAP binding (required)
     ldap_connectionTimeoutSeconds: 30  # Timeout for LDAP connection (optional)
     ldap_connectionRetryDelaySeconds: 300  # Delay between connection retries (optional)
@@ -93,13 +120,84 @@
     ldap_userRealNameAttribute: "cn"  # Attribute for user real name (required)
     ldap_userEmailAddressAttribute: "mail"  # Attribute for user email address (required)
 
+- name: Ensure LDAP server is absent
+  haxorof.sonatype_nexus.nexus_security_ldap:
+    url: "http://172.18.0.2:8081"  # Nexus URL
+    username: "admin"
+    password: "admin123"
+    ldap_name: test 
+    state: absent
+
+## create a ansible set facts to get the current ldap before changeing ldap_name and save that to tmp_ldap_name
+
+- name: UPDATE LDAP server name only (OBS! only run ones)
+  haxorof.sonatype_nexus.nexus_security_ldap:
+    url: "http://172.18.0.2:8081"  # Nexus URL
+    user: admin  # Username for Nexus
+    password: admin123  # Password for Nexus
+    validate_certs: no
+    state: present  # Ensure LDAP server is created/updated
+    current_ldap_name: "test-ldap"  # Optional: Specify for updates
+    ldap_name: "test-ldap-change"  # Name for the LDAP server (required)
+    ldap_protocol: "LDAP"  # Protocol (required)
+    ldap_useTrustStore: false  # Don't use a trust store (optional)
+    ldap_host: "ldap.example.com"  # LDAP server hostname (required)
+    ldap_port: 6333  # LDAP server port (optional, default 389 for LDAP)
+    ldap_searchBase: "dc=example,dc=com"  # Search base for LDAP queries (required)
+    ldap_authScheme: "SIMPLE"  # Authentication scheme (required)
+    ldap_authUsername: "trypass"  # Username for LDAP binding (required)
+    ldap_authPassword: "secretpassword"  # Password for LDAP binding (required)
+    ldap_connectionTimeoutSeconds: 30  # Timeout for LDAP connection (optional)
+    ldap_connectionRetryDelaySeconds: 300  # Delay between connection retries (optional)
+    ldap_maxIncidentsCount: 3  # Maximum failed connection attempts (optional)
+    ldap_userSubtree: true  # Search user subtree (optional)
+    ldap_userObjectClass: "user"  # User object class in LDAP (required)
+    ldap_userIdAttribute: "sAMAccountName"  # Attribute for user ID (required)
+    ldap_userRealNameAttribute: "cn"  # Attribute for user real name (required)
+    ldap_userEmailAddressAttribute: "mail"  # Attribute for user email address (required)
+  register: output
+
+- name: debug update ldap
+  debug:
+    var: output
+
+
+- name: UPDATE LDAP server "secondary"
+  haxorof.sonatype_nexus.nexus_security_ldap:
+    url: "http://172.18.0.2:8081"  # Nexus URL
+    user: admin  # Username for Nexus
+    password: admin123  # Password for Nexus
+    validate_certs: no
+    state: present  # Ensure LDAP server is created/updated
+    ldap_name: "secondary"  # Name for the LDAP server (required)
+    ldap_protocol: "LDAP"  # Protocol (required)
+    ldap_useTrustStore: false  # Don't use a trust store (optional)
+    ldap_host: "ldap.example.com"  # LDAP server hostname (required)
+    ldap_port: 633  # LDAP server port (optional, default 389 for LDAP)
+    ldap_searchBase: "dc=example,dc=com"  # Search base for LDAP queries (required)
+    ldap_authScheme: "SIMPLE"  # Authentication scheme (required)
+    ldap_authUsername: "trypass"  # Username for LDAP binding (required)
+    ldap_authPassword: "secretpassword"  # Password for LDAP binding (required)
+    ldap_connectionTimeoutSeconds: 30  # Timeout for LDAP connection (optional)
+    ldap_connectionRetryDelaySeconds: 300  # Delay between connection retries (optional)
+    ldap_maxIncidentsCount: 3  # Maximum failed connection attempts (optional)
+    ldap_userSubtree: true  # Search user subtree (optional)
+    ldap_userObjectClass: "user"  # User object class in LDAP (required)
+    ldap_userIdAttribute: "sAMAccountName"  # Attribute for user ID (required)
+    ldap_userRealNameAttribute: "cn"  # Attribute for user real name (required)
+    ldap_userEmailAddressAttribute: "mail"  # Attribute for user email address (required)
+  register: output
+
+- name: debug update ldap
+  debug:
+    var: output
+
+
 - name: Set LDAP server order
-  collection.sonatype_nexus.nexus_security_ldap_order:
-    url: "http://172.18.0.3:8081"
+  haxorof.sonatype_nexus.nexus_security_ldap_order:
+    url: "http://172.18.0.2:8081"
     user: admin
     password: admin123
     order_list:
+      - "test-ldap-change"
       - "secondary"
-      - "my-ldap-server"
-      - "my-ldap-server2"
-

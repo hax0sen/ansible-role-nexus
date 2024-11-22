@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-# Copyright: Contributors to the hax0sen.sonatype_nexus project
+# Copyright: Contributors to the haxorof.sonatype_nexus project
 # MIT License (see COPYING or https://opensource.org/license/mit/)
 
 from __future__ import absolute_import, division, print_function
@@ -16,7 +16,7 @@ short_description: Change LDAP server order in Nexus
 
 EXAMPLES = r"""
 - name: Set LDAP server order in Nexus
-  hax0sen.sonatype_nexus.nexus_security_ldap_order:
+  haxorof.sonatype_nexus.nexus_security_ldap_order:
     url: "http://172.18.0.3:8081"
     user: admin
     password: admin123
@@ -30,7 +30,7 @@ RETURN = r"""
 """
 
 from ansible.module_utils.basic import AnsibleModule, env_fallback
-from ansible_collections.hax0sen.sonatype_nexus.plugins.module_utils.nexus import NexusHelper
+from ansible_collections.haxorof.sonatype_nexus.plugins.module_utils.nexus import NexusHelper
 import json
 
 def get_current_ldap_order(helper):
@@ -64,7 +64,8 @@ def change_ldap_order(helper, order_list):
     endpoint = "ldap"
     data = json.dumps(order_list)
     info, content = helper.request(
-    api_url=(helper.NEXUS_API_ENDPOINTS[endpoint] + "/change-order").format(            url=helper.module.params["url"]
+    api_url=(helper.NEXUS_API_ENDPOINTS[endpoint] + "/change-order").format(            
+        url=helper.module.params["url"]
         ),
         method="POST",
         data=data,
