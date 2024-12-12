@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*- 
 
 # Copyright: Contributors to the haxorof.sonatype_nexus project
 # MIT License (see COPYING or https://opensource.org/license/mit/)
@@ -12,8 +12,8 @@ import humps
 
 DOCUMENTATION = r"""
 ---
-module: nexus_repository_npm_hosted
-short_description: Manage hosted NPM repositories
+module: nexus_repository_docker_hosted
+short_description: Manage Docker hosted repositories
 """
 
 EXAMPLES = r"""
@@ -32,18 +32,37 @@ def repository_filter(item, helper):
     return item["name"] == helper.module.params["name"]
 
 def main():
+    endpoint_path_to_use = "/npm/hosted"
+
     argument_spec = NexusHelper.nexus_argument_spec()
     argument_spec.update(
+        format=dict(type="str", choices=["npm"], required=False),
+        type=dict(type="str", choices=["hosted"], required=False),
+        docker=dict(
+            type='dict',
+            apply_defaults=True,
+            options=dict(
+                v1_enabled=dict(type="bool", default=False),
+                force_basic_auth=dict(type="bool", default=False),  # Adding forceBasicAuth here
+                http_port=dict(type="int", default=8082),  # Adding httpPort
+                https_port=dict(type="int", default=8083),  # Adding httpsPort
+                subdomain=dict(type="str", default="docker-a"),  # Adding subdomain
+            ), 
+        ),
+        component=dict( 
+            type='dict', 
+            options=dict( 
+                proprietary_components=dict(type="bool", default=False),
+            ), 
+        ),
     )
-    argument_spec.update(NexusRepositoryHelper.common_proxy_argument_spec())
+    argument_spec.update(NexusRepositoryHelper.common_proxy_argument_spec(endpoint_path_to_use))
     module = AnsibleModule(
         argument_spec=argument_spec,
         supports_check_mode=True,
         required_together=[("username", "password")],
     )
-
     helper = NexusHelper(module)
-
     # Seed the result dict in the object
     result = dict(
         changed=False,
@@ -54,9 +73,8 @@ def main():
     changed, content = True, {}
     existing_data = NexusRepositoryHelper.list_filtered_repositories(helper, repository_filter)
     if module.params["state"] == "present":
-        endpoint_path = "/npm/hosted"
+        endpoint_path = endpoint_path_to_use
         additional_data = {
-            "storage": NexusHelper.camalize_param(helper, "storage"),
         }
         if len(existing_data) > 0:
             content, changed = NexusRepositoryHelper.update_repository(helper, endpoint_path, additional_data, existing_data[0])

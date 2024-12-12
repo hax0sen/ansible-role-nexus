@@ -32,11 +32,12 @@ def repository_filter(item, helper):
     return item["name"] == helper.module.params["name"]
 
 def main():
+    endpoint_path_to_use = "/npm/group"
     argument_spec = NexusHelper.nexus_argument_spec()
     argument_spec.update(
         member_repos=dict(type="list", elements="str", required=False),
     )
-    argument_spec.update(NexusRepositoryHelper.common_proxy_argument_spec())
+    argument_spec.update(NexusRepositoryHelper.common_proxy_argument_spec(endpoint_path_to_use))
     module = AnsibleModule(
         argument_spec=argument_spec,
         supports_check_mode=True,
@@ -55,9 +56,8 @@ def main():
     changed, content = True, {}
     existing_data = NexusRepositoryHelper.list_filtered_repositories(helper, repository_filter)
     if module.params["state"] == "present":
-        endpoint_path = "/npm/group"
+        endpoint_path = endpoint_path_to_use
         additional_data = {
-            "storage": NexusHelper.camalize_param(helper, "storage"),
             "group": {
                 "memberNames": module.params["member_repos"],
             },

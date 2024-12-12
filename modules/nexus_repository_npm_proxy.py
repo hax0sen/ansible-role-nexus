@@ -32,6 +32,7 @@ def repository_filter(item, helper):
     return item["name"] == helper.module.params["name"]
 
 def main():
+    endpoint_path_to_use = "/npm/proxy"
     argument_spec = NexusHelper.nexus_argument_spec()
     argument_spec.update(
         npm=dict(
@@ -41,56 +42,8 @@ def main():
                 remove_quarantined=dict(type="bool", default=False),
             ),
         ),
-        proxy=dict(
-            type='dict',
-            apply_defaults=True,
-            options=dict(
-                remote_url=dict(type="str", required=True),
-                content_max_age=dict(type="int", default=-1),
-                metadata_max_age=dict(type="int", default=0),
-                negative_cache=dict(
-                    type='dict',
-                    apply_defaults=True,
-                    options=dict(
-                        enabled=dict(type="bool", default=False),
-                        time_to_live=dict(type="int", default=0),
-                    ),
-                ),
-            ),
-        ),
-        http_client=dict(
-            type='dict',
-            apply_defaults=True,
-            options=dict(
-                blocked=dict(type="bool", default=False),
-                auto_block=dict(type="bool", default=True),
-                connection=dict(
-                    type='dict',
-                    apply_defaults=True,
-                    options=dict(
-                        retries=dict(type="int", default=0),
-                        user_agent_suffix=dict(type="str", required=False, no_log=False),
-                        timeout=dict(type="int", default=60),
-                        enable_circular_redirects=dict(type="bool", default=False),
-                        enable_cookies=dict(type="bool", default=False),
-                        use_trust_store=dict(type="bool", default=False),
-                    ),
-                ),
-                authentication=dict(
-                    type='dict',
-                    apply_defaults=True,
-                    options=dict(
-                        type=dict(type="str", choices=["username", "ntlm"], default="username"),
-                        username=dict(type="str", required=False, no_log=False),
-                        password=dict(type="str", required=False, no_log=True),
-                        ntlm_host=dict(type="str", required=False, no_log=False),
-                        ntlm_domain=dict(type="str", required=False, no_log=False),
-                    ),
-                ),
-            ),
-        ),
     )
-    argument_spec.update(NexusRepositoryHelper.common_proxy_argument_spec())
+    argument_spec.update(NexusRepositoryHelper.common_proxy_argument_spec(endpoint_path_to_use))
     module = AnsibleModule(
         argument_spec=argument_spec,
         supports_check_mode=True,
@@ -109,10 +62,9 @@ def main():
     changed, content = True, {}
     existing_data = NexusRepositoryHelper.list_filtered_repositories(helper, repository_filter)
     if module.params["state"] == "present":
-        endpoint_path = "/npm/proxy"
+        endpoint_path = endpoint_path_to_use
         additional_data = {
             "npm": NexusHelper.camalize_param(helper, "npm"),
-            "proxy": NexusHelper.camalize_param(helper, "proxy"),
         }
         if len(existing_data) > 0:
             content, changed = NexusRepositoryHelper.update_repository(helper, endpoint_path, additional_data, existing_data[0])

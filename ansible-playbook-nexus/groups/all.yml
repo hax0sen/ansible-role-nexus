@@ -1,0 +1,340 @@
+---
+pass: "password321"
+nexus_ldap_servers:
+  - ldap_name: "primary"
+    ldap_protocol: "LDAP"
+    ldap_useTrustStore: false
+    ldap_host: "ldap.example.com"
+    ldap_searchBase: "dc=example,dc=com"
+    ldap_authUsername: "bind1"
+    ldap_authPassword: "{{ pass }}"
+    ldap_connectionTimeoutSeconds: 30
+    ldap_connectionRetryDelaySeconds: 300
+    ldap_maxIncidentsCount: 3
+    ldap_userSubtree: true
+    ldap_userObjectClass: "user"
+    ldap_userIdAttribute: "sAMAccountName"
+    ldap_userRealNameAttribute: "cn"
+    ldap_userEmailAddressAttribute: "mail"
+  - ldap_name: "secondary"
+    ldap_protocol: "LDAP"
+    ldap_useTrustStore: false
+    ldap_host: "ldap1.example.com"
+    ldap_searchBase: "dc=example,dc=com"
+    ldap_authUsername: "bind2"
+    ldap_authPassword: "password123"
+    ldap_connectionTimeoutSeconds: 30
+    ldap_connectionRetryDelaySeconds: 300
+    ldap_maxIncidentsCount: 3
+    ldap_userSubtree: true
+    ldap_userObjectClass: "user"
+    ldap_userIdAttribute: "sAMAccountName"
+    ldap_userRealNameAttribute: "cn"
+    ldap_userEmailAddressAttribute: "mail"
+
+nexus_blobstore:
+  - name: npm
+  - name: maven
+  - name: docker
+  - name: raw
+  - name: helm
+## docker
+nexus_repos_docker_proxy:
+  - name: docker-internal-releases-proxy-vn
+    storage:
+      blob_store_name: docker
+      strict_content_type_validation: false
+    cleanup:
+      policy_names:
+        - policy1
+    proxy:
+      remote_url: https://registry-1.docker.io
+      content_max_age: -1
+      metadata_max_age: 1
+    negative_cache:
+      enabled: false
+      time_to_live: 0
+    http_client:
+      auto_block: false
+    docker:
+      v1_enabled: yes
+    docker_proxy:
+      index_type: REGISTRY
+      cache_foreign_layers: yes
+      foreign_layer_url_whitelist:
+        - string
+  - name: docker-internal-snapshot-proxy-vn
+    storage:
+      blob_store_name: docker
+      strict_content_type_validation: false
+    cleanup:
+      policy_names:
+        - policy1
+    proxy:
+      remote_url: https://registry-1.docker.io
+      content_max_age: -1
+      metadata_max_age: 0
+    negative_cache:
+      enabled: false
+      time_to_live: 0
+    http_client:
+      auto_block: false
+    docker:
+      v1_enabled: yes
+    docker_proxy:
+      index_type: REGISTRY
+      cache_foreign_layers: yes
+      foreign_layer_url_whitelist:
+        - ".*"
+
+nexus_repos_docker_hosted:
+  - name: docker-hosted1
+    storage:
+      blob_store_name: docker
+      strict_content_type_validation: true
+      write_policy: allow_once  # Check if this is supported in your version  
+    docker:
+      v1_enabled: true
+      force_basic_auth: true
+      http_port: 8082
+      https_port: 8083
+      subdomain: null
+    cleanup: 
+      policy_names: 
+        - string
+  - name: docker-hosted2
+    storage:
+      blob_store_name: docker
+      strict_content_type_validation: true
+      write_policy: allow_once  # Check if this is supported in your version
+    docker:
+      v1_enabled: true
+      http_port: 8007
+      https_port: 8065
+      subdomain: null
+    cleanup: 
+      policy_names: 
+        - policy1
+
+##npm
+nexus_repos_npm_proxy:
+  - name: npm-proxy-repo-1
+    storage:
+      blob_store_name: npm
+      strict_content_type_validation: false
+    cleanup:
+      policy_names:
+        - policy1
+    proxy:
+      remote_url: https://registry.npmjs.org
+      content_max_age: 1
+      metadata_max_age: 0
+    negative_cache:
+      enabled: false
+      time_to_live: 0
+    http_client:
+      auto_block: false
+    npm:
+      remove_quarantined: false
+  - name: npm-proxy-repo-2
+    storage:
+      blob_store_name: npm
+      strict_content_type_validation: true
+    cleanup:
+      policy_names:
+        - policy1
+    proxy:
+      remote_url: https://registry.npmjs.org
+      content_max_age: 2
+      metadata_max_age: 2
+    negative_cache:
+      enabled: true
+      time_to_live: 1
+    http_client:
+      auto_block: true
+    npm:
+      remove_quarantined: false
+
+nexus_repos_npm_hosted:
+  - name: npm-hosted
+    storage:
+      blob_store_name: npm
+      strict_content_type_validation: true
+      write_policy: allow_once
+    cleanup: 
+      policy_names: 
+        - string
+## maven
+nexus_repos_maven_proxy:
+  - name: maven-internal-releases-proxy-vn
+    storage:
+      blob_store_name: maven
+      strict_content_type_validation: false
+    cleanup:
+      policy_names:
+        - policy1
+    proxy:
+      remote_url:  https://repo1.maven.org/maven2/
+      content_max_age: -1
+      metadata_max_age: 1
+    negative_cache:
+      enabled: false
+      time_to_live: 0
+    http_client:
+      auto_block: false
+      authentication:
+        type: username
+        username: test
+        password: pass
+    maven:
+      layout_policy: STRICT
+      version_policy: RELEASE
+      
+nexus_repos_maven_hosted:
+  - name: maven-hosted
+    storage:
+      blob_store_name: maven
+      strict_content_type_validation: true
+      write_policy: allow_once
+    cleanup: 
+      policy_names: 
+        - policy1
+    
+## raw
+
+nexus_repos_raw_proxy:
+  - name: raw-proxy-repo-1
+    storage:
+      blob_store_name: raw
+      strict_content_type_validation: false
+    cleanup:
+      policy_names:
+        - policy1
+    proxy:
+      remote_url: https://example.com/raw
+      content_max_age: 1
+      metadata_max_age: 0
+    negative_cache:
+      enabled: false
+      time_to_live: 0
+    http_client:
+      auto_block: false
+    raw:
+      content_disposition: ATTACHMENT
+
+nexus_repos_raw_hosted:
+  - name: raw-hosted
+    storage:
+      blob_store_name: raw
+      strict_content_type_validation: true
+      write_policy: allow_once
+    cleanup: 
+      policy_names: 
+        - policy1
+
+## HELM
+nexus_repos_helm_proxy:
+  - name: helm-proxy-repo-1
+    storage:
+      blob_store_name: helm
+      strict_content_type_validation: false
+    cleanup:
+      policy_names:
+        - policy1
+    proxy:
+      remote_url: https://example.com/helm
+      content_max_age: 1
+      metadata_max_age: 0
+    negative_cache:
+      enabled: false
+      time_to_live: 0
+    http_client:
+      auto_block: false
+
+nexus_repos_helm_hosted:
+  - name: helm-hosted
+    storage:
+      blob_store_name: helm
+      strict_content_type_validation: true
+      write_policy: allow_once
+    cleanup: 
+      policy_names: 
+        - string
+  - name: helm-hosted1
+    storage:
+      blob_store_name: helm
+      strict_content_type_validation: true
+      write_policy: allow_once
+    cleanup: 
+      policy_names: 
+        - string
+
+
+nexus_roles:
+  - id: vn-rd-repository-view-anonymous
+    name: vn-rd-repository-view-anonymous
+    description: "Role for access to anoymous repos"
+    privileges:
+      - nx-healthcheck-read
+      - nx-search-read
+    roles: []
+  - id: test-cd-server
+    name: test-cd-server
+    description: "Role for ci"
+    privileges:
+      - nx-apikey-all
+      - nx-repository-view-*-*-add
+    roles: []
+
+
+nexus_repos_cleanup_policies:
+  - name: policy1
+    format: all
+    mode: delete
+    notes: "policy 1 for testing"
+    criteria:
+      lastDownloaded: 14
+  - name: policy2
+    format: all
+    mode: delete
+    notes: "policy 2 for testing"
+    criteria:
+      lastBlobUpdated: 14 
+
+nexus_scheduled_tasks:
+ - name: Clear maven snapshots
+   typeId: repository.maven.remove-snapshots
+   taskProperties:
+     repositoryName: "*"  # * for all repos. Change to a repository name if you only want a specific one
+     minimumRetained: "1"
+     snapshotRetentionDays: "30"
+     gracePeriodInDays: "1"
+   booleanTaskProperties:
+     removeIfReleased: true
+   schedule_type: cron
+   cron: '0 50 23 * * ?'
+ - name: Delete incomplete docker upload
+   typeId: repository.docker.upload-purge
+   taskProperties:
+    age: "24" 
+   schedule_type: cron
+   cron: '0 0 0 * * ?'
+ - name: Remove unused docker manifests and images
+   typeId: repository.docker.gc
+   taskProperties:
+     repositoryName: "*"  # * for all repos. Change to a repository name if you only want a specific one
+   schedule_type: cron
+   cron: '0 0 2 * * ?'
+ - name: Compact blobstore (docker)
+   typeId: blobstore.compact
+   taskProperties:
+     repositoryName: "docker"  # * for all repos. Change to a repository name if you only want a specific one
+   schedule_type: cron
+   cron: '0 0 2 * * ?'
+ - name: Compact blobstore (maven)
+   typeId: blobstore.compact
+   taskProperties:
+     repositoryName: "maven"  # * for all repos. Change to a repository name if you only want a specific one
+   schedule_type: cron
+   cron: '0 0 2 * * ?'
+

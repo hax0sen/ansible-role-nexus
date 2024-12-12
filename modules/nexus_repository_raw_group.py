@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*- 
+# -*- coding: utf-8 -*-
 
 # Copyright: Contributors to the haxorof.sonatype_nexus project
 # MIT License (see COPYING or https://opensource.org/license/mit/)
@@ -12,8 +12,8 @@ import humps
 
 DOCUMENTATION = r"""
 ---
-module: nexus_repository_docker_hosted
-short_description: Manage Docker hosted repositories
+module: nexus_repository_maven_proxy
+short_description: Manage Maven proxy repositories
 """
 
 EXAMPLES = r"""
@@ -32,29 +32,10 @@ def repository_filter(item, helper):
     return item["name"] == helper.module.params["name"]
 
 def main():
-    endpoint_path_to_use = "/docker/hosted"
-
+    endpoint_path_to_use = "/raw/group"
     argument_spec = NexusHelper.nexus_argument_spec()
     argument_spec.update(
-        format=dict(type="str", choices=["docker"], required=False),
-        type=dict(type="str", choices=["hosted"], required=False),
-        docker=dict(
-            type='dict',
-            apply_defaults=True,
-            options=dict(
-                v1_enabled=dict(type="bool", default=False),
-                force_basic_auth=dict(type="bool", default=False),  # Adding forceBasicAuth here
-                http_port=dict(type="int", default=8082),  # Adding httpPort
-                https_port=dict(type="int", default=8083),  # Adding httpsPort
-                subdomain=dict(type="str", default="docker-a"),  # Adding subdomain
-            ), 
-        ),
-        component=dict( 
-            type='dict', 
-            options=dict( 
-                proprietary_components=dict(type="bool", default=False),
-            ), 
-        ),
+        member_repos=dict(type="list", elements="str", required=False),
     )
     argument_spec.update(NexusRepositoryHelper.common_proxy_argument_spec(endpoint_path_to_use))
     module = AnsibleModule(
@@ -62,7 +43,9 @@ def main():
         supports_check_mode=True,
         required_together=[("username", "password")],
     )
+
     helper = NexusHelper(module)
+
     # Seed the result dict in the object
     result = dict(
         changed=False,
@@ -75,7 +58,9 @@ def main():
     if module.params["state"] == "present":
         endpoint_path = endpoint_path_to_use
         additional_data = {
-            "docker": NexusHelper.camalize_param(helper, "docker"),
+            "group": {
+                "memberNames": module.params["member_repos"],
+            },
         }
         if len(existing_data) > 0:
             content, changed = NexusRepositoryHelper.update_repository(helper, endpoint_path, additional_data, existing_data[0])

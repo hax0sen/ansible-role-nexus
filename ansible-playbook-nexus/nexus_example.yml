@@ -1,0 +1,604 @@
+---
+## Config nexus roles 
+- name: Configure Nexus roles 
+  haxorof.sonatype_nexus.nexus_roles:
+    url: "http://172.18.0.3:8081"
+    user: admin
+    password: admin123
+    id: "{{ item.id }}"
+    name: "{{ item.name }}"
+    description: "{{ item.description }}"
+    privileges: "{{ item.privileges }}"
+    roles: "{{ item.roles }}"
+  loop: "{{ nexus_roles }}"
+
+- name: Get specific Nexus role
+  haxorof.sonatype_nexus.nexus_roles_info:
+    url: "http://172.18.0.3:8081"
+    user: admin
+    password: admin123
+    name: vn-rd-repository-view-anonymous
+  register: role_info
+
+- name: Debug role info
+  debug:
+    var: role_info
+
+- name: List all Nexus roles
+  haxorof.sonatype_nexus.nexus_roles_info:
+    url: "http://172.18.0.3:8081"
+    user: admin
+    password: admin123
+  register: roles_list
+
+- name: Debug all roles
+  debug:
+    var: roles_list
+
+- name: Remove Nexus role
+  haxorof.sonatype_nexus.nexus_roles:
+    url: "http://172.18.0.3:8081"
+    user: admin
+    password: admin123
+    name: "vn-rd-repository-view-anonymous"
+    id: "vn-rd-repository-view-anonymous"
+    state: absent
+
+- name: Create user
+  haxorof.sonatype_nexus.nexus_security_user:
+    url: "http://172.18.0.3:8081"
+    validate_certs: no
+    username: admin
+    password: admin123
+    user_id: testuser
+    user_password: testuser
+    first_name: test
+    last_name: test
+    email_address: myadmin@localhost
+    status: active
+    roles: [
+      "nx-admin"
+    ]
+    state: present
+
+#scripts tasks 
+
+## schedule tasks script
+- name: Upload schedule tasks script
+  haxorof.sonatype_nexus.nexus_script:
+    url: "http://172.18.0.3:8081"
+    user: admin
+    validate_certs: no
+    password: admin123
+    method: POST
+    name: "scheduled_tasks"
+    content: "{{ lookup('file', '/home/hax0sen/.ansible/collections/ansible_collections/haxorof/sonatype_nexus/files/schedule_tasks.groovy') }}"
+  register: scheduled_tasks
+
+- name: Trigger schedule tasks script
+  haxorof.sonatype_nexus.nexus_script_run:
+    url: "http://172.18.0.3:8081"
+    user: admin
+    password: admin123
+    name: "scheduled_tasks"
+    body: "{{ item | to_json }}"
+  register: script
+  loop: "{{ nexus_scheduled_tasks }}"
+  when: scheduled_tasks.changed
+
+# cleanup policies script 
+- name: Upload Cleanup policies script
+  haxorof.sonatype_nexus.nexus_script:
+    url: "http://172.18.0.3:8081"
+    user: admin
+    validate_certs: no
+    password: admin123
+    method: POST
+    name: "cleanup_policies_script"
+    content: "{{ lookup('file', '/home/hax0sen/.ansible/collections/ansible_collections/haxorof/sonatype_nexus/files/cleanup_policies.groovy') }}"
+
+- name: Trigger Cleanup policies script
+  haxorof.sonatype_nexus.nexus_script_run:
+    url: "http://172.18.0.3:8081"
+    user: admin
+    password: admin123
+    name: "cleanup_policies_script"
+    body: "{{ nexus_repos_cleanup_policies | to_json }}"
+
+- name: Get Nexus scripts
+  haxorof.sonatype_nexus.nexus_script_info:
+    url: "http://172.18.0.3:8081"
+    user: admin
+    password: admin123
+    method: GET
+  register: script_list
+
+- name: Debug script list
+  debug:
+    var: script_list
+
+- name: Delete Nexus script to change admin password
+  haxorof.sonatype_nexus.nexus_script:
+    url: "http://172.18.0.3:8081"
+    user: admin
+    password: admin123
+    method: DELETE
+    name: "setup_capability"
+
+- name: Upload Nexus Audit script
+  haxorof.sonatype_nexus.nexus_script:
+    url: "http://172.18.0.3:8081"
+    user: admin
+    validate_certs: no
+    password: admin123
+    method: POST
+    name: "capability_script"
+    content: "{{ lookup('file', '/home/hax0sen/.ansible/collections/ansible_collections/haxorof/sonatype_nexus/files/capability_script.groovy') }}"
+
+
+- name: Enabled Audit script
+  haxorof.sonatype_nexus.nexus_script_run:
+    url: "http://172.18.0.3:8081"
+    user: admin
+    password: admin123
+    name: "capability_script"
+    body: "{{ {'capability_enabled': true, 'capability_name': 'audit' } | to_json }}"
+
+- name: Disable log4j script
+  haxorof.sonatype_nexus.nexus_script_run:
+    url: "http://172.18.0.3:8081"
+    user: admin
+    password: admin123
+    name: "capability_script"
+    body: "{{ {'capability_enabled': false, 'capability_name': 'log4j-visualizer' } | to_json }}"
+
+
+- name: Get all Ldap servers connect to this Nexus
+  haxorof.sonatype_nexus.nexus_security_ldap_info:
+    url: "http://172.18.0.3:8081"
+    user: admin
+    password: admin123
+    method: GET
+  register: all_ldap_info_servers
+
+- name: List all current LDAP servers
+  debug:
+    var: all_ldap_info_servers
+
+- name: Get Ldap server connect to this Nexus
+  haxorof.sonatype_nexus.nexus_security_ldap_info:
+    url: "http://172.18.0.3:8081"
+    user: admin
+    password: admin123
+    method: GET
+    ldap_name: secondary
+  register: ldap_info_server_list
+
+- name: Debug <name> ldap server
+  debug:
+    var: ldap_info_server_list
+
+- name: Get Ldap server connect to this Nexus
+  haxorof.sonatype_nexus.nexus_security_ldap:
+    url: "http://172.18.0.3:8081"
+    user: admin
+    password: admin123
+    method: GET
+    ldap_name: "secondary"
+  register: ldap_server_list
+
+# - name: Debug <name> ldap server
+#   debug:
+#     var: ldap_server_list
+
+- name: Create LDAP servers
+  haxorof.sonatype_nexus.nexus_security_ldap:
+    url: "http://172.18.0.3:8081"  # Nexus URL
+    user: admin  # Username for Nexus
+    password: admin123  # Password for Nexus
+    validate_certs: no
+    state: present  # Ensure LDAP server is created/updated
+    ldap_name: "{{ item.ldap_name }}"  # Name for the LDAP server (required)
+    ldap_protocol: "{{ item.ldap_protocol }}"  # Protocol (required)
+    ldap_useTrustStore: "{{ item.ldap_useTrustStore }}"  # Don't use a trust store (optional)
+    ldap_host: "{{ item.ldap_host }}"  # LDAP server hostname (required)
+    ldap_port: 3635  # LDAP server port (optional, default 389 for LDAP)
+    ldap_searchBase: "{{ item.ldap_searchBase }}"  # Search base for LDAP queries (required)
+    ldap_authScheme: "SIMPLE"  # Authentication scheme (required)
+    ldap_authUsername: "{{ item.ldap_authUsername }}"  # Username for LDAP binding (required)
+    ldap_authPassword: "{{ item.ldap_authPassword }}"  # Password for LDAP binding (required)
+    ldap_connectionTimeoutSeconds: "{{ item.ldap_connectionTimeoutSeconds }}"  # Timeout for LDAP connection (optional)
+    ldap_connectionRetryDelaySeconds: "{{ item.ldap_connectionRetryDelaySeconds }}"  # Delay between connection retries (optional)
+    ldap_maxIncidentsCount: "{{ item.ldap_maxIncidentsCount }}"  # Maximum failed connection attempts (optional)
+    ldap_userSubtree: "{{ item.ldap_userSubtree }}"  # Search user subtree (optional)
+    ldap_userObjectClass: "{{ item.ldap_userObjectClass }}"  # User object class in LDAP (required)
+    ldap_userIdAttribute: "{{ item.ldap_userIdAttribute }}"  # Attribute for user ID (required)
+    ldap_userRealNameAttribute: "{{ item.ldap_userRealNameAttribute }}"  # Attribute for user real name (required)
+    ldap_userEmailAddressAttribute: "{{ item.ldap_userEmailAddressAttribute }}"  # Attribute for user email address (required)
+  loop: "{{ nexus_ldap_servers }}"
+
+
+
+# - name: Ensure LDAP server is absent
+#   haxorof.sonatype_nexus.nexus_security_ldap:
+#     url: "http://172.18.0.3:8081"  # Nexus URL
+#     username: "admin"
+#     password: "admin123"
+#     ldap_name: test 
+#     state: absent
+
+# ## create a ansible set facts to get the current ldap before changeing ldap_name and save that to tmp_ldap_name
+
+# - name: UPDATE LDAP server name only (OBS! only run ones)
+#   haxorof.sonatype_nexus.nexus_security_ldap:
+#     url: "http://172.18.0.3:8081"  # Nexus URL
+#     user: admin  # Username for Nexus
+#     password: admin123  # Password for Nexus
+#     validate_certs: no
+#     state: present  # Ensure LDAP server is created/updated
+#     current_ldap_name: "test-ldap"  # Optional: Specify for updates
+#     ldap_name: "test-ldap-change"  # Name for the LDAP server (required)
+#     ldap_protocol: "LDAP"  # Protocol (required)
+#     ldap_useTrustStore: false  # Don't use a trust store (optional)
+#     ldap_host: "ldap.example.com"  # LDAP server hostname (required)
+#     ldap_port: 6333  # LDAP server port (optional, default 389 for LDAP)
+#     ldap_searchBase: "dc=example,dc=com"  # Search base for LDAP queries (required)
+#     ldap_authScheme: "SIMPLE"  # Authentication scheme (required)
+#     ldap_authUsername: "trypass"  # Username for LDAP binding (required)
+#     ldap_authPassword: "secretpassword"  # Password for LDAP binding (required)
+#     ldap_connectionTimeoutSeconds: 30  # Timeout for LDAP connection (optional)
+#     ldap_connectionRetryDelaySeconds: 300  # Delay between connection retries (optional)
+#     ldap_maxIncidentsCount: 3  # Maximum failed connection attempts (optional)
+#     ldap_userSubtree: true  # Search user subtree (optional)
+#     ldap_userObjectClass: "user"  # User object class in LDAP (required)
+#     ldap_userIdAttribute: "sAMAccountName"  # Attribute for user ID (required)
+#     ldap_userRealNameAttribute: "cn"  # Attribute for user real name (required)
+#     ldap_userEmailAddressAttribute: "mail"  # Attribute for user email address (required)
+#   register: output
+
+# - name: debug update ldap
+#   debug:
+#     var: output
+
+
+# - name: UPDATE LDAP server "secondary"
+#   haxorof.sonatype_nexus.nexus_security_ldap:
+#     url: "http://172.18.0.3:8081"  # Nexus URL
+#     user: admin  # Username for Nexus
+#     password: admin123  # Password for Nexus
+#     validate_certs: no
+#     state: present  # Ensure LDAP server is created/updated
+#     ldap_name: "secondary"  # Name for the LDAP server (required)
+#     ldap_protocol: "LDAP"  # Protocol (required)
+#     ldap_useTrustStore: false  # Don't use a trust store (optional)
+#     ldap_host: "ldap.example.com"  # LDAP server hostname (required)
+#     ldap_port: 633  # LDAP server port (optional, default 389 for LDAP)
+#     ldap_searchBase: "dc=example,dc=com"  # Search base for LDAP queries (required)
+#     ldap_authScheme: "SIMPLE"  # Authentication scheme (required)
+#     ldap_authUsername: "trypass"  # Username for LDAP binding (required)
+#     ldap_authPassword: "secretpassword"  # Password for LDAP binding (required)
+#     ldap_connectionTimeoutSeconds: 30  # Timeout for LDAP connection (optional)
+#     ldap_connectionRetryDelaySeconds: 300  # Delay between connection retries (optional)
+#     ldap_maxIncidentsCount: 3  # Maximum failed connection attempts (optional)
+#     ldap_userSubtree: true  # Search user subtree (optional)
+#     ldap_userObjectClass: "user"  # User object class in LDAP (required)
+#     ldap_userIdAttribute: "sAMAccountName"  # Attribute for user ID (required)
+#     ldap_userRealNameAttribute: "cn"  # Attribute for user real name (required)
+#     ldap_userEmailAddressAttribute: "mail"  # Attribute for user email address (required)
+#   register: output
+
+# - name: debug update ldap
+#   debug:
+#     var: output
+
+
+- name: Set LDAP server order
+  haxorof.sonatype_nexus.nexus_security_ldap_order:
+    url: "http://172.18.0.3:8081"
+    user: admin
+    password: admin123
+    order_list:
+      - "primary"
+      - "secondary"
+
+## create blobstore docker, helm, maven, npm, raw
+- name: Create blob store of type file
+  haxorof.sonatype_nexus.nexus_blobstore_file:
+    url: "http://172.18.0.3:8081"
+    validate_certs: no
+    name: "{{ item.name }}"
+    username: admin
+    password: admin123
+    state: present
+  register: _result
+  loop: "{{ nexus_blobstore }}"
+
+## remove default hosted, proxy and group repositories
+
+
+# Docker proxy
+- name: Create docker proxy repositories
+  haxorof.sonatype_nexus.nexus_repository_docker_proxy:
+    url: "http://172.18.0.3:8081"
+    validate_certs: no
+    username: admin
+    password: admin123
+    state: present
+    name: "{{ item.name }}"
+    storage: "{{ item.storage }}"
+    cleanup: "{{ item.cleanup }}"
+    proxy: "{{ item.proxy }}"
+    negative_cache: "{{ item.negative_cache }}"
+    http_client: "{{ item.http_client }}"
+    docker: "{{ item.docker }}"
+    docker_proxy: "{{ item.docker_proxy }}"
+  loop: "{{ nexus_repos_docker_proxy }}"
+
+- name: Create hosted Docker repository
+  haxorof.sonatype_nexus.nexus_repository_docker_hosted:
+    url: "http://172.18.0.3:8081"
+    validate_certs: no
+    username: admin
+    password: admin123
+    state: present
+    name: "{{ item.name }}"
+    storage: "{{ item.storage }}"
+    docker: "{{ item.docker }}"
+  with_items: "{{ nexus_repos_docker_hosted }}"
+  register: hosted 
+
+- name: Debug hosted list
+  debug:
+    var: hosted
+
+- name: Create Docker group repository
+  haxorof.sonatype_nexus.nexus_repository_docker_group:
+    url: "http://172.18.0.3:8081"
+    validate_certs: no
+    username: admin
+    password: admin123
+    state: present
+    name: docker-public
+    storage:
+      blob_store_name: docker
+      strict_content_type_validation: true
+    member_repos:
+      - docker-internal-releases-proxy-vn
+#      - docker-internal-snapshot-proxy-vn
+
+- name: Delete hosted Docker repository
+  haxorof.sonatype_nexus.nexus_repository_docker_hosted:
+    url: "http://172.18.0.3:8081"
+    validate_certs: no
+    username: admin
+    password: admin123
+    state: absent
+    name: docker-hosted1
+
+# ## NPM proxy
+- name: Delete default npm proxy repository
+  haxorof.sonatype_nexus.nexus_repository_npm_proxy:
+    url: "http://172.18.0.3:8081"
+    validate_certs: no
+    username: admin
+    password: admin123
+    state: absent
+    name: nuget.org-proxy
+
+- name: Create NPM proxy repositories
+  haxorof.sonatype_nexus.nexus_repository_npm_proxy:
+    url: "http://172.18.0.3:8081"
+    validate_certs: no
+    username: admin
+    password: admin123
+    state: present
+    name: "{{ item.name }}"
+    storage: "{{ item.storage }}"
+    cleanup: "{{ item.cleanup }}"
+    proxy: "{{ item.proxy }}"
+    negative_cache: "{{ item.negative_cache }}"
+    http_client: "{{ item.http_client }}"
+    npm: "{{ item.npm }}"
+  loop: "{{ nexus_repos_npm_proxy }}"
+
+- name: Create hosted npm repository
+  haxorof.sonatype_nexus.nexus_repository_npm_hosted:
+    url: "http://172.18.0.3:8081"
+    validate_certs: no
+    username: admin
+    password: admin123
+    state: present
+    name: "{{ item.name }}"
+    storage: "{{ item.storage }}"
+  with_items: "{{ nexus_repos_npm_hosted }}"
+
+- name: Delete hosted npm repository
+  haxorof.sonatype_nexus.nexus_repository_npm_hosted:
+    url: "http://172.18.0.3:8081"
+    validate_certs: no
+    username: admin
+    password: admin123
+    state: absent
+    name: npm-hosted
+
+- name: Create npm group repository
+  haxorof.sonatype_nexus.nexus_repository_npm_group:
+    url: "http://172.18.0.3:8081"
+    validate_certs: no
+    username: admin
+    password: admin123
+    state: present
+    name: npm-public
+    storage:
+      blob_store_name: npm
+      strict_content_type_validation: true
+    member_repos:
+      - npm-proxy-repo-1
+      - npm-proxy-repo-2
+
+# ## maven
+- name: Delete default hosted maven repository
+  haxorof.sonatype_nexus.nexus_repository_maven_hosted:
+    url: "http://172.18.0.3:8081"
+    validate_certs: no
+    username: admin
+    password: admin123
+    state: absent
+    name: maven-snapshots
+
+- name: Delete default group maven repository
+  haxorof.sonatype_nexus.nexus_repository_maven_group:
+    url: "http://172.18.0.3:8081"
+    validate_certs: no
+    username: admin
+    password: admin123
+    state: absent
+    name: "{{ item }}"
+  loop: 
+    - maven-central
+    - maven-public
+    - maven-releases
+
+- name: Create Maven proxy repositories
+  haxorof.sonatype_nexus.nexus_repository_maven_proxy:
+    url: "http://172.18.0.3:8081"
+    validate_certs: no
+    username: admin
+    password: admin123
+    state: present
+    name: "{{ item.name }}"
+    storage: "{{ item.storage }}"
+    cleanup: "{{ item.cleanup }}"
+    proxy: "{{ item.proxy }}"
+    negative_cache: "{{ item.negative_cache }}"
+    http_client: "{{ item.http_client }}"
+    maven: "{{ item.maven }}"
+  loop: "{{ nexus_repos_maven_proxy }}"
+  register: maven_proxy_value
+
+- name: Debug script list
+  debug:
+    var: maven_proxy_value
+
+- name: Create hosted maven repository
+  haxorof.sonatype_nexus.nexus_repository_maven_hosted:
+    url: "http://172.18.0.3:8081"
+    validate_certs: no
+    username: admin
+    password: admin123
+    state: present
+    name: "{{ item.name }}"
+    storage: "{{ item.storage }}"
+  with_items: "{{ nexus_repos_maven_hosted }}"
+
+- name: Delete hosted maven repository
+  haxorof.sonatype_nexus.nexus_repository_maven_hosted:
+    url: "http://172.18.0.3:8081"
+    validate_certs: no
+    username: admin
+    password: admin123
+    state: absent
+    name: maven-releases
+
+- name: Create maven group repository
+  haxorof.sonatype_nexus.nexus_repository_maven_group:
+    url: "http://172.18.0.3:8081"
+    validate_certs: no
+    username: admin
+    password: admin123
+    state: present
+    name: maven-public
+    storage:
+      blob_store_name: maven
+      strict_content_type_validation: true
+    member_repos:
+      - maven-internal-releases-proxy-vn
+
+# # RAW proxy 
+- name: Create Raw proxy repositories
+  haxorof.sonatype_nexus.nexus_repository_raw_proxy:
+    url: "http://172.18.0.3:8081"
+    validate_certs: no
+    username: admin
+    password: admin123
+    state: present
+    name: "{{ item.name }}"
+    storage: "{{ item.storage }}"
+    cleanup: "{{ item.cleanup }}"
+    proxy: "{{ item.proxy }}"
+    negative_cache: "{{ item.negative_cache }}"
+    http_client: "{{ item.http_client }}"
+    raw: "{{ item.raw }}"
+  loop: "{{ nexus_repos_raw_proxy }}"
+
+
+- name: Create hosted raw repository
+  haxorof.sonatype_nexus.nexus_repository_raw_hosted:
+    url: "http://172.18.0.3:8081"
+    validate_certs: no
+    username: admin
+    password: admin123
+    state: present
+    name: "{{ item.name }}"
+    storage: "{{ item.storage }}"
+  with_items: "{{ nexus_repos_raw_hosted }}"
+
+- name: Delete hosted raw repository
+  haxorof.sonatype_nexus.nexus_repository_raw_hosted:
+    url: "http://172.18.0.3:8081"
+    validate_certs: no
+    username: admin
+    password: admin123
+    state: absent
+    name: maven-releases
+
+- name: Create raw group repository
+  haxorof.sonatype_nexus.nexus_repository_raw_group:
+    url: "http://172.18.0.3:8081"
+    validate_certs: no
+    username: admin
+    password: admin123
+    state: present
+    name: raw-public
+    storage:
+      blob_store_name: raw
+      strict_content_type_validation: true
+    member_repos:
+      - raw-proxy-repo-1
+
+## helm
+
+- name: Create Helm proxy repositories
+  haxorof.sonatype_nexus.nexus_repository_helm_proxy:
+    url: "http://172.18.0.3:8081"
+    validate_certs: no
+    username: admin
+    password: admin123
+    state: present
+    name: "{{ item.name }}"
+    storage: "{{ item.storage }}"
+    cleanup: "{{ item.cleanup }}"
+    proxy: "{{ item.proxy }}"
+    negative_cache: "{{ item.negative_cache }}"
+    http_client: "{{ item.http_client }}"
+  loop: "{{ nexus_repos_helm_proxy }}"
+
+- name: Create hosted helm repository
+  haxorof.sonatype_nexus.nexus_repository_helm_hosted:
+    url: "http://172.18.0.3:8081"
+    validate_certs: no
+    username: admin
+    password: admin123
+    state: present
+    name: "{{ item.name }}"
+    storage: "{{ item.storage }}"
+  with_items: "{{ nexus_repos_helm_hosted }}"
+
+- name: Delete hosted helm repository
+  haxorof.sonatype_nexus.nexus_repository_helm_hosted:
+    url: "http://172.18.0.3:8081"
+    validate_certs: no
+    username: admin
+    password: admin123
+    state: absent
+    name: helm-hosted

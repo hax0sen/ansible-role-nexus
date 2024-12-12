@@ -32,21 +32,20 @@ def repository_filter(item, helper):
     return item["name"] == helper.module.params["name"]
 
 def main():
+    endpoint_path_to_use = "/maven/hosted"
     argument_spec = NexusHelper.nexus_argument_spec()
     argument_spec.update(
-        blob_store=dict(type="str", required=True),
-        write_policy=dict(type="str", choices=["allow", "allow_once", "deny"], default="allow_once"),
         maven=dict(
             type='dict',
             apply_defaults=True,
             options=dict(
-                version_policy=dict(type="str", choices=["release", "snapshot", "mixed"], default="release"),
-                layout_policy=dict(type="str", choices=["strict", "permissive"], default="strict"),
+                version_policy=dict(type="str", choices=["RELEASE", "SNAPSHOT", "MIXED"], default="RELEASE"),
+                layout_policy=dict(type="str", choices=["STRICT", "PERMISSIVE"], default="STRICT"),
+                content_disposition=dict(type="str", choices=["INLINE", "ATTACHMENT"], default="INLINE"),
             ),
         ),
-        strict_content_type_validation=dict(type="bool", default=True),
     )
-    argument_spec.update(NexusRepositoryHelper.common_proxy_argument_spec())
+    argument_spec.update(NexusRepositoryHelper.common_proxy_argument_spec(endpoint_path_to_use))
     module = AnsibleModule(
         argument_spec=argument_spec,
         supports_check_mode=True,
@@ -65,13 +64,8 @@ def main():
     changed, content = True, {}
     existing_data = NexusRepositoryHelper.list_filtered_repositories(helper, repository_filter)
     if module.params["state"] == "present":
-        endpoint_path = "/maven/hosted"
+        endpoint_path = endpoint_path_to_use
         additional_data = {
-            "storage": {
-                "blobStoreName": module.params["blob_store"],
-                "strictContentTypeValidation": module.params["strict_content_type_validation"],
-                "writePolicy": module.params["write_policy"],
-            },
             "maven": NexusHelper.camalize_param(helper, "maven"),
         }
         if len(existing_data) > 0:

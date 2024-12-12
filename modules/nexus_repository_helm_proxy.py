@@ -12,8 +12,8 @@ import humps
 
 DOCUMENTATION = r"""
 ---
-module: nexus_repository_helm_proxy
-short_description: Manage Helm proxy repositories
+module: nexus_repository_maven_proxy
+short_description: Manage Maven proxy repositories
 """
 
 EXAMPLES = r"""
@@ -32,47 +32,11 @@ def repository_filter(item, helper):
     return item["name"] == helper.module.params["name"]
 
 def main():
+    endpoint_path_to_use = "/helm/proxy"
     argument_spec = NexusHelper.nexus_argument_spec()
     argument_spec.update(
-        proxy=dict(
-            type='dict',
-            apply_defaults=True,
-            options=dict(
-                remote_url=dict(type="str", required=True),
-                content_max_age=dict(type="int", default=-1),
-                metadata_max_age=dict(type="int", default=0),
-                negative_cache=dict(
-                    type='dict',
-                    apply_defaults=True,
-                    options=dict(
-                        enabled=dict(type="bool", default=False),
-                        time_to_live=dict(type="int", default=0),
-                    ),
-                ),
-            ),
-        ),
-        http_client=dict(
-            type='dict',
-            apply_defaults=True,
-            options=dict(
-                blocked=dict(type="bool", default=False),
-                auto_block=dict(type="bool", default=True),
-                connection=dict(
-                    type='dict',
-                    apply_defaults=True,
-                    options=dict(
-                        retries=dict(type="int", default=0),
-                        user_agent_suffix=dict(type="str", required=False, no_log=False),
-                        timeout=dict(type="int", default=60),
-                        enable_circular_redirects=dict(type="bool", default=False),
-                        enable_cookies=dict(type="bool", default=False),
-                        use_trust_store=dict(type="bool", default=False),
-                    ),
-                ),
-            ),
-        ),
     )
-    argument_spec.update(NexusRepositoryHelper.common_proxy_argument_spec())
+    argument_spec.update(NexusRepositoryHelper.common_proxy_argument_spec(endpoint_path_to_use))
     module = AnsibleModule(
         argument_spec=argument_spec,
         supports_check_mode=True,
@@ -91,10 +55,8 @@ def main():
     changed, content = True, {}
     existing_data = NexusRepositoryHelper.list_filtered_repositories(helper, repository_filter)
     if module.params["state"] == "present":
-        endpoint_path = "/helm/proxy"
+        endpoint_path = endpoint_path_to_use
         additional_data = {
-            "proxy": NexusHelper.camalize_param(helper, "proxy"),
-            "httpClient": NexusHelper.camalize_param(helper, "http_client"),
         }
         if len(existing_data) > 0:
             content, changed = NexusRepositoryHelper.update_repository(helper, endpoint_path, additional_data, existing_data[0])

@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-# Copyright: Contributors to the haxorof.sonatype_nexus project
+# Copyright: Contributors to the hax0sen.sonatype_nexus project
 # MIT License (see COPYING or https://opensource.org/license/mit/)
 
 from __future__ import absolute_import, division, print_function
@@ -16,7 +16,7 @@ short_description: Manage scripts in Nexus
 
 EXAMPLES = r"""
 - name: Upload Nexus script to change admin password
-  haxorof.sonatype_nexus.nexus_script:
+  hax0sen.sonatype_nexus.nexus_script:
     url: "http://172.18.0.2:8081/service/rest/v1/script"
     user: admin
     password: admin123
@@ -29,7 +29,7 @@ RETURN = r"""
 """
 
 from ansible.module_utils.basic import AnsibleModule, env_fallback
-from ansible_collections.haxorof.sonatype_nexus.plugins.module_utils.nexus import NexusHelper
+from ansible_collections.hax0sen.sonatype_nexus.plugins.module_utils.nexus import NexusHelper
 
 def list_scripts(helper):
     endpoint = "script"

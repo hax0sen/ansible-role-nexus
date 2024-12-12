@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-# Copyright: Contributors to the haxorof.sonatype_nexus project
+# Copyright: Contributors to the hax0sen.sonatype_nexus project
 # MIT License (see COPYING or https://opensource.org/license/mit/)
 
 from __future__ import absolute_import, division, print_function
@@ -16,7 +16,7 @@ short_description: Run a script in Nexus
 
 EXAMPLES = r"""
 - name: Trigger script
-  haxorof.sonatype_nexus.nexus_script_run:
+  hax0sen.sonatype_nexus.nexus_script_run:
     url: "http://172.18.0.3:8081"
     user: admin
     password: admin123
@@ -28,7 +28,7 @@ RETURN = r"""
 """
 
 from ansible.module_utils.basic import AnsibleModule, env_fallback
-from ansible_collections.haxorof.sonatype_nexus.plugins.module_utils.nexus import NexusHelper
+from ansible_collections.hax0sen.sonatype_nexus.plugins.module_utils.nexus import NexusHelper
 
 def run_script(helper):
     endpoint = "script"
