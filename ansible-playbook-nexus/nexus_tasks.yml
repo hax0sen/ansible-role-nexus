@@ -18,9 +18,6 @@
     body: "{{ {'with_http_proxy': nexus_with_http_proxy, 'http_proxy_host': nexus_http_proxy_host, 'http_proxy_port': nexus_http_proxy_port, 'with_https_proxy': nexus_with_https_proxy, 'proxy_exclude_hosts': nexus_proxy_exclude_hosts } | to_json }}"
 
 
-
-
-
 - name: Create user
   haxorof.sonatype_nexus.nexus_security_user:
     url: "http://172.18.0.2:8081"
@@ -116,30 +113,31 @@
   debug:
     var: ldap_server_list
 
-- name: Create LDAP server "my-ldap-server"
+- name: Create LDAP servers
   haxorof.sonatype_nexus.nexus_security_ldap:
     url: "http://172.18.0.2:8081"  # Nexus URL
     user: admin  # Username for Nexus
     password: admin123  # Password for Nexus
     validate_certs: no
     state: present  # Ensure LDAP server is created/updated
-    ldap_name: "test"  # Name for the LDAP server (required)
-    ldap_protocol: "LDAP"  # Protocol (required)
-    ldap_useTrustStore: false  # Don't use a trust store (optional)
-    ldap_host: "ldap.example.com"  # LDAP server hostname (required)
+    ldap_name: "{{ item.ldap_name }}"  # Name for the LDAP server (required)
+    ldap_protocol: "{{ item.ldap_protocol }}"  # Protocol (required)
+    ldap_use_trust_store: "{{ item.ldap_use_trust_store }}"  # Don't use a trust store (optional)
+    ldap_host: "{{ item.ldap_host }}"  # LDAP server hostname (required)
     ldap_port: 3635  # LDAP server port (optional, default 389 for LDAP)
-    ldap_searchBase: "dc=example,dc=com"  # Search base for LDAP queries (required)
-    ldap_authScheme: "SIMPLE"  # Authentication scheme (required)
-    ldap_authUsername: "test"  # Username for LDAP binding (required)
-    ldap_authPassword: "secretpassword"  # Password for LDAP binding (required)
-    ldap_connectionTimeoutSeconds: 30  # Timeout for LDAP connection (optional)
-    ldap_connectionRetryDelaySeconds: 300  # Delay between connection retries (optional)
-    ldap_maxIncidentsCount: 3  # Maximum failed connection attempts (optional)
-    ldap_userSubtree: true  # Search user subtree (optional)
-    ldap_userObjectClass: "user"  # User object class in LDAP (required)
-    ldap_userIdAttribute: "sAMAccountName"  # Attribute for user ID (required)
-    ldap_userRealNameAttribute: "cn"  # Attribute for user real name (required)
-    ldap_userEmailAddressAttribute: "mail"  # Attribute for user email address (required)
+    ldap_search_base: "{{ item.ldap_search_base }}"  # Search base for LDAP queries (required)
+    ldap_auth_scheme: "SIMPLE"  # Authentication scheme (required)
+    ldap_auth_username: "{{ item.ldap_auth_username }}"  # Username for LDAP binding (required)
+    ldap_auth_password: password222  # Password for LDAP binding (required)
+    ldap_connection_timeout_seconds: "{{ item.ldap_connection_timeout_seconds }}"  # Timeout for LDAP connection (optional)
+    ldap_connection_retry_delay_seconds: "{{ item.ldap_connection_retry_delay_seconds }}"  # Delay between connection retries (optional)
+    ldap_max_incidents_count: "{{ item.ldap_max_incidents_count }}"  # Maximum failed connection attempts (optional)
+    ldap_user_subtree: "{{ item.ldap_user_subtree }}"  # Search user subtree (optional)
+    ldap_user_object_class: "{{ item.ldap_user_object_class }}"  # User object class in LDAP (required)
+    ldap_user_id_attribute: "{{ item.ldap_user_id_attribute }}"  # Attribute for user ID (required)
+    ldap_user_real_name_attribute: "{{ item.ldap_user_real_name_attribute }}"  # Attribute for user real name (required)
+    ldap_user_email_address_attribute: "{{ item.ldap_user_email_address_attribute }}"  # Attribute for user email address (required)
+  loop: "{{ nexus_ldap_servers }}"
 
 - name: Ensure LDAP server is absent
   haxorof.sonatype_nexus.nexus_security_ldap:
