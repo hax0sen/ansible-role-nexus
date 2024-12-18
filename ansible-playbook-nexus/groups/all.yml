@@ -338,3 +338,11 @@ nexus_scheduled_tasks:
    schedule_type: cron
    cron: '0 0 2 * * ?'
 
+nexus_with_http_proxy: true
+nexus_http_proxy_host: my.localhost
+nexus_with_https_proxy: false
+nexus_http_proxy_port: 8080
+nexus_proxy_exclude_hosts:
+  - localhost
+  - 127.*
+  - "[::1]"

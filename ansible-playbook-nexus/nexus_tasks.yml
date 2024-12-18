@@ -1,4 +1,25 @@
 ---
+- name: Upload proxy script
+  haxorof.sonatype_nexus.nexus_script:
+    url: "http://172.18.0.2:8081"
+    user: admin
+    validate_certs: no
+    password: admin123
+    method: POST
+    name: "setup_http_proxy"
+    content: "{{ lookup('file', '/home/<user>/.ansible/collections/ansible_collections/haxorof/sonatype_nexus/files/setup_http_proxy.groovy') }}"
+
+- name: Trigger proxy script
+  haxorof.sonatype_nexus.nexus_script_run:
+    url: "http://172.18.0.2:8081"
+    user: admin
+    password: admin123
+    name: "setup_http_proxy"
+    body: "{{ {'with_http_proxy': nexus_with_http_proxy, 'http_proxy_host': nexus_http_proxy_host, 'http_proxy_port': nexus_http_proxy_port, 'with_https_proxy': nexus_with_https_proxy, 'proxy_exclude_hosts': nexus_proxy_exclude_hosts } | to_json }}"
+
+
+
+
 
 - name: Create user
   haxorof.sonatype_nexus.nexus_security_user:
