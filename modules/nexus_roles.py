@@ -8,7 +8,6 @@ from __future__ import absolute_import, division, print_function
 
 __metaclass__ = type
 
-
 DOCUMENTATION = r"""
 ---
 module: nexus_roles
@@ -37,29 +36,35 @@ from ansible_collections.haxorof.sonatype_nexus.plugins.module_utils.nexus impor
     NexusHelper,
 )
 
-
-def list_roles(helper):
+def list_role(helper, role_id):
+    """Fetch a role's details from Nexus, ensuring source=default is included."""
     endpoint = "roles"
     info, content = helper.request(
-        api_url=(helper.NEXUS_API_ENDPOINTS[endpoint]).format(
+        api_url=(helper.NEXUS_API_ENDPOINTS[endpoint] + "/{id}?source=default").format(
             url=helper.module.params["url"],
+            id=role_id
         ),
         method="GET",
     )
-    if info["status"] in [200]:
-        content = content["json"]
+
+    if info["status"] == 200:
+        return content.get("json", content)
     elif info["status"] == 403:
         helper.generic_permission_failure_msg()
+    elif info["status"] == 404:
+        return None  # Role does not exist
     else:
         helper.module.fail_json(
-            msg="Failed to fetch roles, http_status={status}.".format(
+            msg="Failed to fetch role {role_id}, http_status={status}.".format(
+                role_id=role_id,
                 status=info["status"],
             )
         )
 
-    return content
+    return None
 
 def create_role(helper):
+    """Create a new role in Nexus."""
     changed = True
     data = {
         "id": helper.module.params["id"],
@@ -71,7 +76,7 @@ def create_role(helper):
     endpoint = "roles"
     info, content = helper.request(
         api_url=(helper.NEXUS_API_ENDPOINTS[endpoint]).format(
-            url=helper.module.params["url"],
+            url=helper.module.params["url"]
         ),
         method="POST",
         data=data,
@@ -91,6 +96,7 @@ def create_role(helper):
     return content, changed
 
 def delete_role(helper):
+    """Delete an existing role from Nexus."""
     changed = True
     endpoint = "roles"
     info, content = helper.request(
@@ -101,7 +107,7 @@ def delete_role(helper):
         method="DELETE",
     )
 
-    if info["status"] in [404]:
+    if info["status"] == 404:
         content.pop("fetch_url_retries", None)
         changed = False
     elif info["status"] == 403:
@@ -117,7 +123,9 @@ def delete_role(helper):
 
     return content, changed
 
+
 def update_role(helper, existing_role):
+    """Update an existing role in Nexus if changes are required."""
     changed = True
     data = {
         "id": existing_role["id"],
@@ -126,33 +134,20 @@ def update_role(helper, existing_role):
         "privileges": existing_role["privileges"],
         "roles": existing_role["roles"],
     }
+
     if helper.module.params["name"]:
-        data.update(
-            {
-                "name": helper.module.params["name"],
-            }
-        )
+        data["name"] = helper.module.params["name"]
     if helper.module.params["description"]:
-        data.update(
-            {
-                "description": helper.module.params["description"],
-            }
-        )
+        data["description"] = helper.module.params["description"]
     if helper.module.params["privileges"]:
-        data.update(
-            {
-                "privileges": helper.module.params["privileges"],
-            }
-        )
+        data["privileges"] = helper.module.params["privileges"]
     if helper.module.params["roles"]:
-        data.update(
-            {
-                "roles": helper.module.params["roles"],
-            }
-        )
+        data["roles"] = helper.module.params["roles"]
+
     endpoint = "roles"
+
     if helper.is_json_data_equal(data, existing_role):
-        return existing_role, False
+        return existing_role, False  # No change needed
 
     info, content = helper.request(
         api_url=(helper.NEXUS_API_ENDPOINTS[endpoint] + "/{id}").format(
@@ -163,7 +158,7 @@ def update_role(helper, existing_role):
         data=data,
     )
 
-    if info["status"] in [204]:
+    if info["status"] == 204:
         content = data
     elif info["status"] == 403:
         helper.generic_permission_failure_msg()
@@ -180,6 +175,7 @@ def update_role(helper, existing_role):
 
 
 def main():
+    """Main function for the Ansible module."""
     argument_spec = NexusHelper.nexus_argument_spec()
     argument_spec.update(
         id=dict(type="str", required=True, no_log=False),
@@ -193,6 +189,7 @@ def main():
         ),
         state=dict(type="str", choices=["present", "absent"], default="present"),
     )
+
     module = AnsibleModule(
         argument_spec=argument_spec,
         supports_check_mode=False,
@@ -209,10 +206,12 @@ def main():
     )
 
     content = {}
-    changed = True
-    existing_roles = list_roles(helper)
-    existing_role = next((role for role in existing_roles if role["id"] == module.params["id"]), None)
-    if existing_role:
+    changed = False
+    role_id = module.params["id"]
+
+    existing_role = list_role(helper, role_id)
+
+    if existing_role is not None:
         if module.params["state"] == "present":
             content, changed = update_role(helper, existing_role)
         else:
@@ -221,10 +220,14 @@ def main():
         if module.params["state"] == "present":
             content, changed = create_role(helper)
         else:
-            changed = False
+            module.fail_json(
+                msg="Role {role_id} does not exist and cannot be deleted.".format(
+                    role_id=role_id,
+                )
+            )
+
     result["json"] = content
     result["changed"] = changed
-
     module.exit_json(**result)
 
 
